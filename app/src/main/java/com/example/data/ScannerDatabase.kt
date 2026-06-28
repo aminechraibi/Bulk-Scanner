@@ -26,5 +26,9 @@ abstract class ScannerDatabase : RoomDatabase() {
                 instance
             }
         }
+
+        fun setTestDatabase(db: ScannerDatabase?) {
+            INSTANCE = db
+        }
     }
 }

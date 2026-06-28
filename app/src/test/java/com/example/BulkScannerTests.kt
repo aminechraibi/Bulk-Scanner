@@ -2,12 +2,18 @@ package com.example
 
 import android.app.Application
 import android.content.Context
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.*
 import com.example.ui.viewmodel.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -25,13 +31,30 @@ class BulkScannerTests {
     private lateinit var database: ScannerDatabase
     private lateinit var repository: ScannerRepository
     private lateinit var viewModel: ScannerViewModel
+    private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(testDispatcher)
         app = ApplicationProvider.getApplicationContext()
-        database = ScannerDatabase.getDatabase(app)
+        
+        // Use an isolated, in-memory database with a synchronous executor to prevent flaky test failures and threading races
+        database = Room.inMemoryDatabaseBuilder(app, ScannerDatabase::class.java)
+            .allowMainThreadQueries()
+            .setQueryExecutor { it.run() }
+            .setTransactionExecutor { it.run() }
+            .build()
+        ScannerDatabase.setTestDatabase(database)
+        
         repository = ScannerRepository(app, database.scannerDao())
         viewModel = ScannerViewModel(app)
+    }
+
+    @After
+    fun tearDown() {
+        database.close()
+        ScannerDatabase.setTestDatabase(null)
+        Dispatchers.resetMain()
     }
 
     @Test
