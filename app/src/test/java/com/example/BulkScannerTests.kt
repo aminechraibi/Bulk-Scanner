@@ -2,12 +2,14 @@ package com.example
 
 import android.app.Application
 import android.content.Context
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.*
 import com.example.ui.viewmodel.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -52,6 +54,7 @@ class BulkScannerTests {
 
     @After
     fun tearDown() {
+        viewModel.viewModelScope.cancel()
         database.close()
         ScannerDatabase.setTestDatabase(null)
         Dispatchers.resetMain()
