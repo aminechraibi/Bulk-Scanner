@@ -120,8 +120,11 @@ class ScannerViewModel @JvmOverloads constructor(
                 topLeftX = topLeftX, topLeftY = topLeftY,
                 enhancementPreset = "Document"
             )
+            // Insert into DB first so updatePageSettings has a row to update
+            val insertedId = database.scannerDao().insertPage(pageEntity)
+            val insertedPage = pageEntity.copy(id = insertedId)
             // Generate processed
-            repository.updatePageSettings(pageEntity)
+            repository.updatePageSettings(insertedPage)
         }
 
         // 2. Corporate Receipts Sample Batch
@@ -153,8 +156,11 @@ class ScannerViewModel @JvmOverloads constructor(
                 status = "good",
                 enhancementPreset = "Handwriting"
             )
+            // Insert into DB first so updatePageSettings has a row to update
+            val insertedId = database.scannerDao().insertPage(pageEntity)
+            val insertedPage = pageEntity.copy(id = insertedId)
             // Generate processed
-            repository.updatePageSettings(pageEntity)
+            repository.updatePageSettings(insertedPage)
         }
     }
 
