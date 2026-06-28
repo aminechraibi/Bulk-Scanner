@@ -1,0 +1,6 @@
+{
+  "name": "Bulk Scanner",
+  "description": "A fast, bulk document and paper scanner app for teachers, students, and offices.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
