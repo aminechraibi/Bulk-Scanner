@@ -273,6 +273,12 @@ class ScannerViewModel @JvmOverloads constructor(
                 val dao = database.scannerDao()
                 dao.deletePagesForBatch(bId)
                 dao.insertPages(originalPagesList)
+                
+                val currentBatchObj = dao.getBatchById(bId)
+                if (currentBatchObj != null) {
+                    dao.updateBatch(currentBatchObj.copy(pageCount = originalPagesList.size))
+                }
+                
                 // Copy physical files if needed, but since we didn't delete physical files or can just write them
                 // Refresh batch
                 _currentBatch.value = repository.getBatchById(bId)
@@ -338,13 +344,23 @@ class ScannerViewModel @JvmOverloads constructor(
         }
     }
 
+    private fun sanitizeFileName(fileName: String, defaultName: String): String {
+        if (fileName.isBlank()) return defaultName
+        var sanitized = fileName.replace(Regex("[<>:\"/\\\\|?*]"), "_")
+        if (sanitized.length > 120) {
+            sanitized = sanitized.substring(0, 120)
+        }
+        return if (sanitized.isBlank()) defaultName else sanitized
+    }
+
     // Export PDF
     fun exportCurrentBatchPdf(fileName: String, onComplete: (File) -> Unit) {
         val bId = _currentBatchId.value ?: return
         _exportState.value = ExportStatus.Loading
         viewModelScope.launch {
             try {
-                val file = repository.exportBatchAsPdf(bId, fileName)
+                val sanitized = sanitizeFileName(fileName, "batch_export")
+                val file = repository.exportBatchAsPdf(bId, sanitized)
                 _exportState.value = ExportStatus.Success(file, "PDF")
                 onComplete(file)
             } catch (e: Exception) {
@@ -359,7 +375,8 @@ class ScannerViewModel @JvmOverloads constructor(
         _exportState.value = ExportStatus.Loading
         viewModelScope.launch {
             try {
-                val file = repository.exportBatchAsZip(bId, fileName)
+                val sanitized = sanitizeFileName(fileName, "batch_export")
+                val file = repository.exportBatchAsZip(bId, sanitized)
                 _exportState.value = ExportStatus.Success(file, "ZIP Archive")
                 onComplete(file)
             } catch (e: Exception) {
