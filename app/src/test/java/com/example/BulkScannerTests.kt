@@ -68,7 +68,7 @@ class BulkScannerTests {
     }
 
     @Test
-    fun testDefaultSampleBatchesLoaded() = runTest {
+    fun testDefaultSampleBatchesLoaded() = runTest(testDispatcher) {
         try {
             println("[TEST] Starting testDefaultSampleBatchesLoaded")
             // ViewModel init starts a coroutine that pre-populates sample batches
@@ -88,7 +88,7 @@ class BulkScannerTests {
     }
 
     @Test
-    fun testCreateNewBatchAndSelect() = runTest {
+    fun testCreateNewBatchAndSelect() = runTest(testDispatcher) {
         try {
             println("[TEST] Starting testCreateNewBatchAndSelect")
             // Create custom batch
@@ -115,7 +115,7 @@ class BulkScannerTests {
     }
 
     @Test
-    fun testToggleProblemsFilter() = runTest {
+    fun testToggleProblemsFilter() = runTest(testDispatcher) {
         try {
             println("[TEST] Starting testToggleProblemsFilter")
             // Grab pre-populated batches
@@ -162,7 +162,7 @@ class BulkScannerTests {
     }
 
     @Test
-    fun testSavePageEditsAndUndo() = runTest {
+    fun testSavePageEditsAndUndo() = runTest(testDispatcher) {
         try {
             println("[TEST] Starting testSavePageEditsAndUndo")
             val batches = viewModel.allBatches.first { it.isNotEmpty() }
@@ -208,7 +208,7 @@ class BulkScannerTests {
     }
 
     @Test
-    fun testDeletePageAndUndo() = runTest {
+    fun testDeletePageAndUndo() = runTest(testDispatcher) {
         try {
             println("[TEST] Starting testDeletePageAndUndo")
             val batches = viewModel.allBatches.first { it.isNotEmpty() }
@@ -250,7 +250,7 @@ class BulkScannerTests {
     }
 
     @Test
-    fun testPageReordering() = runTest {
+    fun testPageReordering() = runTest(testDispatcher) {
         try {
             println("[TEST] Starting testPageReordering")
             val batches = viewModel.allBatches.first { it.isNotEmpty() }
@@ -268,11 +268,13 @@ class BulkScannerTests {
                 
                 viewModel.reorderPages(reordered)
                 
-                // Wait for reorder to persist
-                val resultPages = viewModel.currentPages.first { it.isNotEmpty() && it[0].id == temp.id }
-                println("[TEST] Reordered. First page original number: ${temp.pageNumber}, new pageNumber: ${resultPages[0].pageNumber}")
-                assertEquals(2, resultPages[0].pageNumber) // originally 1, now 2
-                assertEquals(1, resultPages[1].pageNumber) // originally 2, now 1
+                // Wait for reorder to persist (since they are ORDER BY pageNumber ASC, temp which became second page will be at index 1)
+                val resultPages = viewModel.currentPages.first { it.isNotEmpty() && it.size >= 2 && it[1].id == temp.id }
+                println("[TEST] Reordered. First page original ID: ${temp.id}, new first page ID: ${resultPages[0].id}")
+                assertEquals(1, resultPages[0].pageNumber)
+                assertEquals(2, resultPages[1].pageNumber)
+                assertEquals(initialPages[1].id, resultPages[0].id)
+                assertEquals(temp.id, resultPages[1].id)
                 
                 // Undo reordering
                 viewModel.triggerUndo()
@@ -289,7 +291,7 @@ class BulkScannerTests {
     }
 
     @Test
-    fun testExportPdfAndZip() = runTest {
+    fun testExportPdfAndZip() = runTest(testDispatcher) {
         try {
             println("[TEST] Starting testExportPdfAndZip")
             val batches = viewModel.allBatches.first { it.isNotEmpty() }
