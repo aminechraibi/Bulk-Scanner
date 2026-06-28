@@ -14,7 +14,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-class ScannerViewModel(
+class ScannerViewModel @JvmOverloads constructor(
     application: Application,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val sharingStarted: SharingStarted = SharingStarted.WhileSubscribed(5000)
