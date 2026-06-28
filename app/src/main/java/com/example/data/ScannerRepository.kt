@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfDocument
 import com.example.data.ImageProcessor
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -13,7 +14,11 @@ import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-class ScannerRepository(private val context: Context, private val dao: ScannerDao) {
+class ScannerRepository(
+    private val context: Context,
+    private val dao: ScannerDao,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) {
 
     val allBatches: Flow<List<BatchEntity>> = dao.getAllBatches()
 
@@ -33,7 +38,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         dao.updateBatch(batch)
     }
 
-    suspend fun deleteBatch(batchId: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteBatch(batchId: String) = withContext(ioDispatcher) {
         val batch = dao.getBatchById(batchId)
         if (batch != null) {
             dao.deleteBatch(batch)
@@ -46,7 +51,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         }
     }
 
-    suspend fun saveOriginalImage(batchId: String, pageNumber: Int, tempFile: File): File = withContext(Dispatchers.IO) {
+    suspend fun saveOriginalImage(batchId: String, pageNumber: Int, tempFile: File): File = withContext(ioDispatcher) {
         val originalDir = File(context.filesDir, "batches/$batchId/originals")
         originalDir.mkdirs()
         val originalFile = File(originalDir, "page_${String.format("%03d", pageNumber)}.jpg")
@@ -64,7 +69,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         bottomLeftX: Float = 0.05f, bottomLeftY: Float = 0.95f,
         rotationDegrees: Int = 0,
         enhancementPreset: String = "Document"
-    ): File = withContext(Dispatchers.IO) {
+    ): File = withContext(ioDispatcher) {
         val processedDir = File(context.filesDir, "batches/$batchId/processed")
         processedDir.mkdirs()
         val processedFile = File(processedDir, "page_${String.format("%03d", pageNumber)}.jpg")
@@ -91,7 +96,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         bottomLeftX: Float = 0.05f, bottomLeftY: Float = 0.95f,
         enhancementPreset: String = "Document",
         rotationDegrees: Int = 0
-    ): PageEntity = withContext(Dispatchers.IO) {
+    ): PageEntity = withContext(ioDispatcher) {
         // Get existing pages to determine page number
         val pages = dao.getPagesForBatchList(batchId)
         val newPageNumber = if (pages.isEmpty()) 1 else pages.last().pageNumber + 1
@@ -138,7 +143,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         finalPage
     }
 
-    suspend fun updatePageSettings(page: PageEntity): PageEntity = withContext(Dispatchers.IO) {
+    suspend fun updatePageSettings(page: PageEntity): PageEntity = withContext(ioDispatcher) {
         val originalFile = File(page.originalPath)
         val processedFile = File(page.processedPath)
         
@@ -159,7 +164,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         updatedPage
     }
 
-    suspend fun deletePageFromBatch(page: PageEntity) = withContext(Dispatchers.IO) {
+    suspend fun deletePageFromBatch(page: PageEntity) = withContext(ioDispatcher) {
         dao.deletePage(page)
         
         // Delete files
@@ -182,7 +187,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         }
     }
 
-    suspend fun reorderPages(batchId: String, orderedPages: List<PageEntity>) = withContext(Dispatchers.IO) {
+    suspend fun reorderPages(batchId: String, orderedPages: List<PageEntity>) = withContext(ioDispatcher) {
         // Simple update: loop through list and set their new page number sequentially
         for ((index, page) in orderedPages.withIndex()) {
             val updatedPage = page.copy(pageNumber = index + 1)
@@ -190,7 +195,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
         }
     }
 
-    suspend fun replacePageImage(page: PageEntity, newTempFile: File): PageEntity = withContext(Dispatchers.IO) {
+    suspend fun replacePageImage(page: PageEntity, newTempFile: File): PageEntity = withContext(ioDispatcher) {
         // Overwrite original file
         val originalFile = File(page.originalPath)
         newTempFile.copyTo(originalFile, overwrite = true)
@@ -214,7 +219,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
     }
 
     // PDF Export function
-    suspend fun exportBatchAsPdf(batchId: String, pdfFileName: String): File = withContext(Dispatchers.IO) {
+    suspend fun exportBatchAsPdf(batchId: String, pdfFileName: String): File = withContext(ioDispatcher) {
         val pages = dao.getPagesForBatchList(batchId)
         val exportsDir = File(context.filesDir, "batches/$batchId/exports")
         exportsDir.mkdirs()
@@ -251,7 +256,7 @@ class ScannerRepository(private val context: Context, private val dao: ScannerDa
     }
 
     // ZIP Export function (Compiles processed, originals, metadata.json and pdf as a ZIP)
-    suspend fun exportBatchAsZip(batchId: String, zipFileName: String): File = withContext(Dispatchers.IO) {
+    suspend fun exportBatchAsZip(batchId: String, zipFileName: String): File = withContext(ioDispatcher) {
         val batch = dao.getBatchById(batchId) ?: throw Exception("Batch not found")
         val pages = dao.getPagesForBatchList(batchId)
         

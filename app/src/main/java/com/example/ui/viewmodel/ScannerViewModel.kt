@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,10 +14,13 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-class ScannerViewModel(application: Application) : AndroidViewModel(application) {
+class ScannerViewModel(
+    application: Application,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : AndroidViewModel(application) {
 
     private val database = ScannerDatabase.getDatabase(application)
-    private val repository = ScannerRepository(application, database.scannerDao())
+    private val repository = ScannerRepository(application, database.scannerDao(), ioDispatcher)
 
     // All historic batches
     val allBatches: StateFlow<List<BatchEntity>> = repository.allBatches
@@ -72,7 +76,7 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private suspend fun createSampleBatch() = withContext(Dispatchers.IO) {
+    private suspend fun createSampleBatch() = withContext(ioDispatcher) {
         val app = getApplication<Application>()
         
         // 1. Algebra Exam Sample Batch
