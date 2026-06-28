@@ -51,7 +51,7 @@ class BulkScannerTests {
         ScannerDatabase.setTestDatabase(database)
         
         repository = ScannerRepository(app, database.scannerDao(), testDispatcher)
-        viewModel = ScannerViewModel(app, testDispatcher, SharingStarted.Eagerly)
+        viewModel = ScannerViewModel(app, testDispatcher, SharingStarted.WhileSubscribed(0))
     }
 
     @After
