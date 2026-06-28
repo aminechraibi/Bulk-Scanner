@@ -13,6 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -82,6 +83,7 @@ class BulkScannerTests {
             println("[TEST] testDefaultSampleBatchesLoaded passed successfully")
         } finally {
             viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
         }
     }
 
@@ -108,6 +110,7 @@ class BulkScannerTests {
             println("[TEST] testCreateNewBatchAndSelect passed successfully")
         } finally {
             viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
         }
     }
 
@@ -130,24 +133,31 @@ class BulkScannerTests {
             
             // Ensure showOnlyProblems is initially false
             assertFalse(viewModel.showOnlyProblems.value)
-            assertEquals(allPages.size, viewModel.displayedPages.value.size)
+            
+            // Timing-safe verification of displayedPages emission
+            val displayedPagesInitial = viewModel.displayedPages.first { it.size == allPages.size }
+            assertEquals(allPages.size, displayedPagesInitial.size)
             
             // Toggle the filter on
             viewModel.toggleProblemsFilter()
             assertTrue(viewModel.showOnlyProblems.value)
             
-            // Verified problem count matches display list
+            // Verified problem count matches display list (timing-safe!)
             val warningPagesCount = allPages.count { it.status == "warning" || it.warningTypes.isNotEmpty() }
-            println("[TEST] Warning pages count: $warningPagesCount, displayed: ${viewModel.displayedPages.value.size}")
-            assertEquals(warningPagesCount, viewModel.displayedPages.value.size)
+            val displayedPagesFiltered = viewModel.displayedPages.first { it.size == warningPagesCount }
+            println("[TEST] Warning pages count: $warningPagesCount, displayed: ${displayedPagesFiltered.size}")
+            assertEquals(warningPagesCount, displayedPagesFiltered.size)
             
             // Toggle filter off again
             viewModel.toggleProblemsFilter()
             assertFalse(viewModel.showOnlyProblems.value)
-            assertEquals(allPages.size, viewModel.displayedPages.value.size)
+            
+            val displayedPagesFinal = viewModel.displayedPages.first { it.size == allPages.size }
+            assertEquals(allPages.size, displayedPagesFinal.size)
             println("[TEST] testToggleProblemsFilter passed successfully")
         } finally {
             viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
         }
     }
 
@@ -193,6 +203,7 @@ class BulkScannerTests {
             println("[TEST] testSavePageEditsAndUndo passed successfully")
         } finally {
             viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
         }
     }
 
@@ -234,6 +245,7 @@ class BulkScannerTests {
             println("[TEST] testDeletePageAndUndo passed successfully")
         } finally {
             viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
         }
     }
 
@@ -272,6 +284,7 @@ class BulkScannerTests {
             println("[TEST] testPageReordering passed successfully")
         } finally {
             viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
         }
     }
 
@@ -313,6 +326,7 @@ class BulkScannerTests {
             println("[TEST] testExportPdfAndZip passed successfully")
         } finally {
             viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
         }
     }
 }
