@@ -16,7 +16,8 @@ import java.util.UUID
 
 class ScannerViewModel(
     application: Application,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val sharingStarted: SharingStarted = SharingStarted.WhileSubscribed(5000)
 ) : AndroidViewModel(application) {
 
     private val database = ScannerDatabase.getDatabase(application)
@@ -24,7 +25,7 @@ class ScannerViewModel(
 
     // All historic batches
     val allBatches: StateFlow<List<BatchEntity>> = repository.allBatches
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     // Active batch details
     private val _currentBatchId = MutableStateFlow<String?>(null)
@@ -38,7 +39,7 @@ class ScannerViewModel(
         .flatMapLatest { id ->
             if (id != null) repository.getPagesForBatch(id) else flowOf(emptyList())
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     // Problem filter state (Show only pages with warnings/errors)
     private val _showOnlyProblems = MutableStateFlow(false)
@@ -51,7 +52,7 @@ class ScannerViewModel(
         } else {
             pages
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, sharingStarted, emptyList())
 
     // Page currently being edited in Page Editor Screen
     private val _editingPage = MutableStateFlow<PageEntity?>(null)

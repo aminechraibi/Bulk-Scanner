@@ -10,6 +10,7 @@ import com.example.ui.viewmodel.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -49,7 +50,7 @@ class BulkScannerTests {
         ScannerDatabase.setTestDatabase(database)
         
         repository = ScannerRepository(app, database.scannerDao(), testDispatcher)
-        viewModel = ScannerViewModel(app, testDispatcher)
+        viewModel = ScannerViewModel(app, testDispatcher, SharingStarted.Eagerly)
     }
 
     @After
