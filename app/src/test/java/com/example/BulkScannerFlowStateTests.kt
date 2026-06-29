@@ -77,8 +77,8 @@ class BulkScannerFlowStateTests {
 
         val batches = viewModel.allBatches.value
         assertEquals(2, batches.size) // pre-populated with 2 sample batches
-        assertEquals("Algebra Midterm Papers", batches[0].name)
-        assertEquals("Receipts - June 2026", batches[1].name)
+        assertEquals("Office Expenses Invoice", batches[0].name)
+        assertEquals("Algebra Midterm Papers", batches[1].name)
     }
 
     @Test
