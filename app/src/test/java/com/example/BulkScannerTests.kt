@@ -67,7 +67,7 @@ class BulkScannerTests {
     }
 
     private fun createViewModel(): ScannerViewModel {
-        val vm = ScannerViewModel(app, testDispatcher, SharingStarted.Eagerly)
+        val vm = ScannerViewModel(app, testDispatcher, SharingStarted.Eagerly, populateSampleData = true)
         viewModel = vm
         return vm
     }

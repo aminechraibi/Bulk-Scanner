@@ -252,6 +252,8 @@ fun PageEditorScreen(
                             .height(50.dp)
                             .testTag("save_edits_button")
                     ) {
+                        Icon(Icons.Default.Save, contentDescription = null, tint = Color.Black)
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("Apply & Save", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }

@@ -383,6 +383,8 @@ fun ReviewGridScreen(
                                 .testTag("confirm_export_button"),
                             shape = RoundedCornerShape(12.dp)
                         ) {
+                            Icon(Icons.Default.Download, contentDescription = null, tint = Color.Black)
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("Compile & Export", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }

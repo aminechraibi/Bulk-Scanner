@@ -41,6 +41,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntSize
 import androidx.core.content.ContextCompat
 import com.example.data.SampleDocumentGenerator
 import com.example.ui.viewmodel.ScannerViewModel
@@ -67,12 +71,12 @@ fun CameraScanScreen(
     val pages by viewModel.currentPages.collectAsState()
 
     // Camera settings
-    var isRealCamera by remember { mutableStateOf(false) } // Default to Interactive Simulator for optimal emulator testing
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
+    var isRealCamera by remember { mutableStateOf(hasCameraPermission) } // Use real camera if permission is already granted
 
     var flashEnabled by remember { mutableStateOf(false) }
     var isPaused by remember { mutableStateOf(false) }
@@ -93,6 +97,41 @@ fun CameraScanScreen(
     var autoCaptureLocked by remember { mutableStateOf(false) }
     var showFlashOverlay by remember { mutableStateOf(false) }
 
+    // Draggable crop corners (Paper boundary / automatic detection handles)
+    var topLeftX by remember { mutableStateOf(0.18f) }
+    var topLeftY by remember { mutableStateOf(0.22f) }
+    var topRightX by remember { mutableStateOf(0.82f) }
+    var topRightY by remember { mutableStateOf(0.22f) }
+    var bottomRightX by remember { mutableStateOf(0.82f) }
+    var bottomRightY by remember { mutableStateOf(0.78f) }
+    var bottomLeftX by remember { mutableStateOf(0.18f) }
+    var bottomLeftY by remember { mutableStateOf(0.78f) }
+
+    var activeDraggingCorner by remember { mutableStateOf<String?>(null) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // Automatically adjust paper boundary corners dynamically (Real-time Paper Detection)
+    // only if the user is not actively dragging/customizing them manually.
+    LaunchedEffect(alignmentProgress, cameraWobbleX, cameraWobbleY, activeDraggingCorner, isRealCamera) {
+        if (activeDraggingCorner == null) {
+            val tX = if (isRealCamera) 0f else cameraWobbleX * 0.0006f
+            val tY = if (isRealCamera) 0f else cameraWobbleY * 0.0006f
+            val deltaAlign = (alignmentProgress - 0.7f) * 0.03f
+
+            topLeftX = 0.18f + tX
+            topLeftY = 0.22f + tY
+
+            topRightX = 0.82f + tX + deltaAlign
+            topRightY = 0.22f + tY - deltaAlign
+
+            bottomRightX = 0.82f + tX + deltaAlign
+            bottomRightY = 0.78f + tY + deltaAlign
+
+            bottomLeftX = 0.18f + tX - deltaAlign
+            bottomLeftY = 0.78f + tY
+        }
+    }
+
     // Real CameraX instance objects
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
@@ -105,6 +144,13 @@ fun CameraScanScreen(
             isRealCamera = true
         } else {
             Toast.makeText(context, "Camera permission denied. Defaulting to Simulator.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Auto-request camera permission on entering the screen if not yet granted
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
@@ -144,7 +190,14 @@ fun CameraScanScreen(
                         ContextCompat.getMainExecutor(context),
                         object : ImageCapture.OnImageSavedCallback {
                             override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                                viewModel.addPageToCurrentBatch(file, initialPreset)
+                                viewModel.addPageToCurrentBatch(
+                                    tempFile = file,
+                                    preset = initialPreset,
+                                    topLeftX = topLeftX, topLeftY = topLeftY,
+                                    topRightX = topRightX, topRightY = topRightY,
+                                    bottomRightX = bottomRightX, bottomRightY = bottomRightY,
+                                    bottomLeftX = bottomLeftX, bottomLeftY = bottomLeftY
+                                )
                             }
                             override fun onError(exception: ImageCaptureException) {
                                 Toast.makeText(context, "Capture failed: ${exception.message}", Toast.LENGTH_SHORT).show()
@@ -154,7 +207,14 @@ fun CameraScanScreen(
                 } else {
                     // Simulator Mode: generate programmatic document texture
                     val tempSimFile = SampleDocumentGenerator.generateSampleDocFile(context, simDoc.id)
-                    viewModel.addPageToCurrentBatch(tempSimFile, initialPreset)
+                    viewModel.addPageToCurrentBatch(
+                        tempFile = tempSimFile,
+                        preset = initialPreset,
+                        topLeftX = topLeftX, topLeftY = topLeftY,
+                        topRightX = topRightX, topRightY = topRightY,
+                        bottomRightX = bottomRightX, bottomRightY = bottomRightY,
+                        bottomLeftX = bottomLeftX, bottomLeftY = bottomLeftY
+                    )
                 }
                 
                 // Reset countdown
@@ -196,6 +256,64 @@ fun CameraScanScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .onSizeChanged { containerSize = it }
+                .pointerInput(isPaused) {
+                    if (!isPaused) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                if (containerSize.width > 0 && containerSize.height > 0) {
+                                    val px = offset.x / containerSize.width
+                                    val py = offset.y / containerSize.height
+                                    val distTL = Math.hypot((px - topLeftX).toDouble(), (py - topLeftY).toDouble())
+                                    val distTR = Math.hypot((px - topRightX).toDouble(), (py - topRightY).toDouble())
+                                    val distBR = Math.hypot((px - bottomRightX).toDouble(), (py - bottomRightY).toDouble())
+                                    val distBL = Math.hypot((px - bottomLeftX).toDouble(), (py - bottomLeftY).toDouble())
+
+                                    val threshold = 0.15 // Grab radius threshold
+                                    val closest = listOf(
+                                        "TL" to distTL,
+                                        "TR" to distTR,
+                                        "BR" to distBR,
+                                        "BL" to distBL
+                                    ).minByOrNull { it.second }
+
+                                    if (closest != null && closest.second < threshold) {
+                                        activeDraggingCorner = closest.first
+                                    }
+                                }
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                if (containerSize.width > 0 && containerSize.height > 0) {
+                                    val dx = dragAmount.x / containerSize.width
+                                    val dy = dragAmount.y / containerSize.height
+
+                                    when (activeDraggingCorner) {
+                                        "TL" -> {
+                                            topLeftX = (topLeftX + dx).coerceIn(0f, topRightX - 0.05f)
+                                            topLeftY = (topLeftY + dy).coerceIn(0f, bottomLeftY - 0.05f)
+                                        }
+                                        "TR" -> {
+                                            topRightX = (topRightX + dx).coerceIn(topLeftX + 0.05f, 1f)
+                                            topRightY = (topRightY + dy).coerceIn(0f, bottomRightY - 0.05f)
+                                        }
+                                        "BR" -> {
+                                            bottomRightX = (bottomRightX + dx).coerceIn(bottomLeftX + 0.05f, 1f)
+                                            bottomRightY = (bottomRightY + dy).coerceIn(topRightY + 0.05f, 1f)
+                                        }
+                                        "BL" -> {
+                                            bottomLeftX = (bottomLeftX + dx).coerceIn(0f, bottomRightX - 0.05f)
+                                            bottomLeftY = (bottomLeftY + dy).coerceIn(topLeftY + 0.05f, 1f)
+                                        }
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                activeDraggingCorner = null
+                            }
+                        )
+                    }
+                }
         ) {
             // 1. Viewfinder Screen (Real CameraX or Simulator desk view)
             if (isRealCamera && hasCameraPermission) {
@@ -282,13 +400,19 @@ fun CameraScanScreen(
                 }
             }
 
+            val borderStateColor = when {
+                alignmentProgress < 0.4f -> Color(0xFFE74C3C) // Red - bad
+                autoCaptureLocked -> Color(0xFF00E676)       // Green - lock
+                else -> Color(0xFFF1C40F)                    // Yellow - stabilizing
+            }
+
             // 2. Neon Perspective Border Overlay (Draws responsive crop rectangle)
             OverlayBorderCanvas(
-                isRealCamera = isRealCamera,
-                autoCaptureLocked = autoCaptureLocked,
-                alignmentProgress = alignmentProgress,
-                wobbleX = cameraWobbleX,
-                wobbleY = cameraWobbleY
+                topLeftX = topLeftX, topLeftY = topLeftY,
+                topRightX = topRightX, topRightY = topRightY,
+                bottomRightX = bottomRightX, bottomRightY = bottomRightY,
+                bottomLeftX = bottomLeftX, bottomLeftY = bottomLeftY,
+                borderStateColor = borderStateColor
             )
 
             // 3. Header HUD (Page counters, pause, source toggle)
@@ -605,36 +729,20 @@ fun WarningBadge(text: String) {
 
 @Composable
 fun OverlayBorderCanvas(
-    isRealCamera: Boolean,
-    autoCaptureLocked: Boolean,
-    alignmentProgress: Float,
-    wobbleX: Float,
-    wobbleY: Float
+    topLeftX: Float, topLeftY: Float,
+    topRightX: Float, topRightY: Float,
+    bottomRightX: Float, bottomRightY: Float,
+    bottomLeftX: Float, bottomLeftY: Float,
+    borderStateColor: Color
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val width = size.width
         val height = size.height
 
-        // Define corners for perspective overlay depending on alignment/simulator drift
-        val borderStateColor = when {
-            alignmentProgress < 0.4f -> Color(0xFFE74C3C) // Red - bad
-            autoCaptureLocked -> Color(0xFF00E676)       // Green - lock
-            else -> Color(0xFFF1C40F)                    // Yellow - stabilizing
-        }
-
-        // Calculate responsive path lines mimicking actual real-time quad finder
-        // If in simulator: warp the bounding quad based on alignment slide and wobble
-        val tX = if (isRealCamera) 0f else wobbleX * 0.4f
-        val tY = if (isRealCamera) 0f else wobbleY * 0.4f
-
-        val paddingW = width * 0.18f
-        val paddingH = height * 0.22f
-
-        // Let's draw a nice skewed quad
-        val p1 = Offset(paddingW + tX, paddingH + tY)
-        val p2 = Offset(width - paddingW + tX + (alignmentProgress - 0.7f) * 60f, paddingH + tY - (alignmentProgress - 0.7f) * 40f)
-        val p3 = Offset(width - paddingW + tX + (alignmentProgress - 0.7f) * 40f, height - paddingH + tY + (alignmentProgress - 0.7f) * 60f)
-        val p4 = Offset(paddingW + tX - (alignmentProgress - 0.7f) * 50f, height - paddingH + tY)
+        val p1 = Offset(topLeftX * width, topLeftY * height)
+        val p2 = Offset(topRightX * width, topRightY * height)
+        val p3 = Offset(bottomRightX * width, bottomRightY * height)
+        val p4 = Offset(bottomLeftX * width, bottomLeftY * height)
 
         val path = Path().apply {
             moveTo(p1.x, p1.y)
@@ -652,7 +760,7 @@ fun OverlayBorderCanvas(
         )
 
         // Draw targets/crosshairs at corners
-        val radius = 10.dp.toPx()
+        val radius = 12.dp.toPx()
         val corners = listOf(p1, p2, p3, p4)
         for (corner in corners) {
             drawCircle(
@@ -663,7 +771,7 @@ fun OverlayBorderCanvas(
             )
             drawCircle(
                 color = borderStateColor,
-                radius = 3.dp.toPx(),
+                radius = 4.dp.toPx(),
                 center = corner
             )
         }

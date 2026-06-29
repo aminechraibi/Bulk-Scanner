@@ -17,7 +17,8 @@ import java.util.UUID
 class ScannerViewModel @JvmOverloads constructor(
     application: Application,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val sharingStarted: SharingStarted = SharingStarted.WhileSubscribed(5000)
+    private val sharingStarted: SharingStarted = SharingStarted.WhileSubscribed(5000),
+    private val populateSampleData: Boolean = false
 ) : AndroidViewModel(application) {
 
     private val database = ScannerDatabase.getDatabase(application)
@@ -68,11 +69,13 @@ class ScannerViewModel @JvmOverloads constructor(
     val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
 
     init {
-        // Pre-populate with sample batches if database is empty on first launch
-        viewModelScope.launch {
-            allBatches.first() // wait for first emission
-            if (allBatches.value.isEmpty()) {
-                createSampleBatch()
+        // Pre-populate with sample batches if requested (e.g. for testing)
+        if (populateSampleData) {
+            viewModelScope.launch {
+                allBatches.first() // wait for first emission
+                if (allBatches.value.isEmpty()) {
+                    createSampleBatch()
+                }
             }
         }
     }
@@ -206,12 +209,24 @@ class ScannerViewModel @JvmOverloads constructor(
     }
 
     // Capture/scan action
-    fun addPageToCurrentBatch(tempFile: File, preset: String, onComplete: (PageEntity) -> Unit = {}) {
+    fun addPageToCurrentBatch(
+        tempFile: File,
+        preset: String,
+        topLeftX: Float = 0.05f, topLeftY: Float = 0.05f,
+        topRightX: Float = 0.95f, topRightY: Float = 0.05f,
+        bottomRightX: Float = 0.95f, bottomRightY: Float = 0.95f,
+        bottomLeftX: Float = 0.05f, bottomLeftY: Float = 0.95f,
+        onComplete: (PageEntity) -> Unit = {}
+    ) {
         val bId = _currentBatchId.value ?: return
         viewModelScope.launch {
             val page = repository.addNewPageToBatch(
                 batchId = bId,
                 tempOriginalFile = tempFile,
+                topLeftX = topLeftX, topLeftY = topLeftY,
+                topRightX = topRightX, topRightY = topRightY,
+                bottomRightX = bottomRightX, bottomRightY = bottomRightY,
+                bottomLeftX = bottomLeftX, bottomLeftY = bottomLeftY,
                 enhancementPreset = preset
             )
             // Refresh batch details
@@ -359,6 +374,7 @@ class ScannerViewModel @JvmOverloads constructor(
         _exportState.value = ExportStatus.Loading
         viewModelScope.launch {
             try {
+                repository.getBatchById(bId) ?: throw Exception("Batch not found")
                 val sanitized = sanitizeFileName(fileName, "batch_export")
                 val file = repository.exportBatchAsPdf(bId, sanitized)
                 _exportState.value = ExportStatus.Success(file, "PDF")
@@ -375,6 +391,7 @@ class ScannerViewModel @JvmOverloads constructor(
         _exportState.value = ExportStatus.Loading
         viewModelScope.launch {
             try {
+                repository.getBatchById(bId) ?: throw Exception("Batch not found")
                 val sanitized = sanitizeFileName(fileName, "batch_export")
                 val file = repository.exportBatchAsZip(bId, sanitized)
                 _exportState.value = ExportStatus.Success(file, "ZIP Archive")
